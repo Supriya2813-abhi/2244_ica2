@@ -1,46 +1,49 @@
 pipeline {
     agent any
     environment {
-        DOCKER_IMAGE = 'supriya2813/my-static-site'
-        DOCKER_TAG = "develop-${env.BUILD_ID}"
+        DOCKER_IMAGE = "supriya2813/2244_ica2:latest"  // Replace with your Docker Hub image name
     }
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'develop', url: 'https://github.com/Supriya2813-abhi/2244_ica2.git'
+                checkout scm
             }
         }
-        stage('Build Image') {
+        stage('Pull Docker Image') {
             steps {
                 script {
-                    sh 'docker build -t ${DOCKER_IMAGE}:latest .'
-                    sh 'docker tag ${DOCKER_IMAGE}:latest ${DOCKER_IMAGE}:${DOCKER_TAG}'
+                    echo "Pulling Docker image: ${DOCKER_IMAGE}"
+                    sh "docker pull ${DOCKER_IMAGE}"
                 }
             }
         }
-        stage('Run Container & Test') {
+        stage('Run Docker Container') {
             steps {
                 script {
-                    sh 'docker run -d -p 8081:80 ${DOCKER_IMAGE}:${DOCKER_TAG}'
-                    sh 'curl -I http://localhost:8081'  // Testing if website is accessible
+                    echo "Running Docker container on port 8082"
+                    sh """
+                    docker stop main-container || true
+                    docker rm main-container || true
+                    docker run -d --name main-container -p 8082:80 ${DOCKER_IMAGE}
+                    """
                 }
             }
         }
-        stage('Push to Docker Hub') {
+        stage('Test Website Accessibility') {
             steps {
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
-                        sh 'docker push ${DOCKER_IMAGE}:latest'
-                        sh 'docker push ${DOCKER_IMAGE}:${DOCKER_TAG}'
-                    }
+                    echo "Testing website accessibility on port 8082"
+                    sh "curl -I localhost:8082"
                 }
             }
         }
     }
     post {
-        always {
-            sh 'docker rm -f $(docker ps -a -q)'  // Clean up any containers
+        success {
+            echo "Main branch pipeline completed successfully!"
+        }
+        failure {
+            echo "Main branch pipeline failed. Check logs for details."
         }
     }
 }
