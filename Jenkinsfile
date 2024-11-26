@@ -1,7 +1,7 @@
 pipeline {
     agent any
     environment {
-        DOCKER_IMAGE = "supriya2813/2244_ica2:latest"  // Replace with your Docker Hub image name
+        DOCKER_IMAGE = "supriya2813/my-static-site:latest"  // Replace with your Docker Hub image name
     }
     stages {
         stage('Checkout Code') {
