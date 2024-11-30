@@ -8,12 +8,6 @@ pipeline {
     }
 
     stages {
-        stage('Checkout Code') {
-            steps {
-                checkout scm
-            }
-        }
-        
         stage('Pull Docker Image') {
             steps {
                 script {
@@ -27,6 +21,7 @@ pipeline {
             steps {
                 script {
                     echo "Checking if port ${PORT} is in use..."
+
                     // Check and kill processes using the port
                     sh """
                         if sudo lsof -i :${PORT}; then
@@ -34,19 +29,20 @@ pipeline {
                             fuser -k ${PORT}/tcp || true
                         fi
                     """
-                    
+
                     echo "Stopping and removing any existing container with the name ${CONTAINER_NAME}..."
                     // Stop and remove the Docker container if it exists
                     sh """
                         docker stop ${CONTAINER_NAME} || true
                         docker rm ${CONTAINER_NAME} || true
                     """
-                    
+
                     echo "Starting the Docker container on port ${PORT}..."
                     // Run the Docker container
-                    sh """
-                        docker run -d --name ${CONTAINER_NAME} -p ${PORT}:80 ${DOCKER_IMAGE}
-                    """
+                    def runContainerStatus = sh(script: "docker run -d --name ${CONTAINER_NAME} -p ${PORT}:80 ${DOCKER_IMAGE}", returnStatus: true)
+                    if (runContainerStatus != 0) {
+                        error "Failed to start Docker container"
+                    }
                 }
             }
         }
@@ -55,9 +51,10 @@ pipeline {
             steps {
                 script {
                     echo "Testing website accessibility on http://localhost:${PORT}..."
-                    sh """
-                        curl -I http://localhost:${PORT} || exit 1
-                    """
+                    def curlStatus = sh(script: "curl -I http://localhost:${PORT} || exit 1", returnStatus: true)
+                    if (curlStatus != 0) {
+                        error "Website is not accessible"
+                    }
                 }
             }
         }
