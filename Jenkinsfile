@@ -21,10 +21,10 @@ pipeline {
             steps {
                 script {
                     echo "Checking if port ${PORT} is in use..."
-
-                    // Check and kill processes using the port
+                    // Check if port is being used by any process, and kill the process if necessary
                     sh """
-                        if sudo lsof -i :${PORT}; then
+                        # Check if any process is using the port
+                        if lsof -i :${PORT}; then
                             echo "Port ${PORT} is in use. Killing the process..."
                             fuser -k ${PORT}/tcp || true
                         fi
@@ -41,7 +41,7 @@ pipeline {
                     // Run the Docker container
                     def runContainerStatus = sh(script: "docker run -d --name ${CONTAINER_NAME} -p ${PORT}:80 ${DOCKER_IMAGE}", returnStatus: true)
                     if (runContainerStatus != 0) {
-                        error "Failed to start Docker container"
+                        error "Failed to start Docker container on port ${PORT}"
                     }
                 }
             }
