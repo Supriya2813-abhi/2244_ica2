@@ -13,7 +13,16 @@ pipeline {
         }
         stage('Run Container') {
             steps {
-                sh 'docker run -d -p 8082:80 --name develop-container my-static-website'
+                script {
+                    // Check if a container with the same name exists and remove it
+                    sh '''
+                        if [ $(docker ps -aq -f name=develop-container) ]; then
+                            docker stop develop-container || true
+                            docker rm develop-container || true
+                        fi
+                        docker run -d -p 8082:80 --name develop-container my-static-website
+                    '''
+                }
             }
         }
         stage('Test') {
@@ -43,3 +52,4 @@ pipeline {
         }
     }
 }
+
