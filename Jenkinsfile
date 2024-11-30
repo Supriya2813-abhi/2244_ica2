@@ -1,63 +1,75 @@
 pipeline {
     agent any
+
+    environment {
+        DOCKER_IMAGE = 'supriya2813/my-static-site:latest'
+        CONTAINER_NAME = 'main-container'
+        PORT = 8082
+    }
+
     stages {
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+            }
+        }
+        
         stage('Pull Docker Image') {
             steps {
                 script {
-                    echo 'Pulling Docker image: supriya2813/my-static-site:latest'
-                    sh 'docker pull supriya2813/my-static-site:latest'
+                    echo "Pulling Docker image: ${DOCKER_IMAGE}"
+                    sh "docker pull ${DOCKER_IMAGE}"
                 }
             }
         }
+
         stage('Run Docker Container') {
             steps {
                 script {
-                    echo 'Checking if port 8082 is available...'
-                    def portInUse = sh(
-                        script: "lsof -i :8082 | grep LISTEN || echo 'Not in use'",
-                        returnStdout: true
-                    ).trim()
-
-                    if (portInUse.contains("LISTEN")) {
-                        echo "Port 8082 is in use. Stopping the conflicting container..."
-                        sh """
-                            conflictingContainer=\$(docker ps -q --filter "publish=8082")
-                            if [ -n "\$conflictingContainer" ]; then
-                                docker stop \$conflictingContainer
-                                docker rm \$conflictingContainer
-                            fi
-                        """
-                    }
-
-                    echo 'Running Docker container on port 8082...'
+                    echo "Checking if port ${PORT} is in use..."
+                    // Check and kill processes using the port
                     sh """
-                        docker stop main-container || true
-                        docker rm main-container || true
-                        docker run -d --name main-container -p 8082:80 supriya2813/my-static-site:latest
+                        if sudo lsof -i :${PORT}; then
+                            echo "Port ${PORT} is in use. Killing the process..."
+                            fuser -k ${PORT}/tcp || true
+                        fi
+                    """
+                    
+                    echo "Stopping and removing any existing container with the name ${CONTAINER_NAME}..."
+                    // Stop and remove the Docker container if it exists
+                    sh """
+                        docker stop ${CONTAINER_NAME} || true
+                        docker rm ${CONTAINER_NAME} || true
+                    """
+                    
+                    echo "Starting the Docker container on port ${PORT}..."
+                    // Run the Docker container
+                    sh """
+                        docker run -d --name ${CONTAINER_NAME} -p ${PORT}:80 ${DOCKER_IMAGE}
                     """
                 }
             }
         }
+
         stage('Test Website Accessibility') {
             steps {
                 script {
-                    echo 'Testing website accessibility...'
-                    sh 'curl -I localhost:8082'
+                    echo "Testing website accessibility on http://localhost:${PORT}..."
+                    sh """
+                        curl -I http://localhost:${PORT} || exit 1
+                    """
                 }
             }
         }
     }
+
     post {
-        failure {
-            echo 'Main branch pipeline failed. Check logs for details.'
-        }
         success {
-            echo 'Main branch pipeline executed successfully.'
+            echo "Pipeline completed successfully!"
+        }
+        failure {
+            echo "Pipeline failed. Check logs for details."
         }
     }
 }
-<<<<<<< HEAD
 
-
-=======
->>>>>>> a6ecd3bedf605c2b76c84997f814bff3d08d6684
