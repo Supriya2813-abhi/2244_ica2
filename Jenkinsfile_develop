@@ -13,11 +13,19 @@ pipeline {
         }
         stage('Run Container') {
             steps {
-                sh 'docker run -d -p 8082:80 --name develop-container my-static-site'
+                script {
+                    // Stop and remove the container if it already exists
+                    sh 'docker stop develop-container || true'
+                    sh 'docker rm develop-container || true'
+                    
+                    // Run the container on port 8082
+                    sh 'docker run -d -p 8082:80 --name develop-container my-static-site'
+                }
             }
         }
         stage('Test') {
             steps {
+                // Test if the website is accessible
                 sh 'curl -I localhost:8082'
             }
         }
@@ -25,16 +33,16 @@ pipeline {
             steps {
                 script {
                     // Use credentials to log in to Docker Hub
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         // Log in to Docker Hub
                         sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
 
                         // Tag the image with the correct namespace and repo name
                         def buildId = env.BUILD_ID ?: "local"
-                        sh 'docker tag my-static-website docker.io/supriya2813/my-static-site:latest'
-                        sh "docker tag my-static-website docker.io/supriya2813/my-static-site:develop-6-${buildId}"
+                        sh 'docker tag my-static-site docker.io/supriya2813/my-static-site:latest'
+                        sh "docker tag my-static-site docker.io/supriya2813/my-static-site:develop-6-${buildId}"
 
-                        // Push the image to Docker Hub (repository will be auto-created)
+                        // Push the image to Docker Hub
                         sh 'docker push docker.io/supriya2813/my-static-site:latest'
                         sh "docker push docker.io/supriya2813/my-static-site:develop-6-${buildId}"
                     }
