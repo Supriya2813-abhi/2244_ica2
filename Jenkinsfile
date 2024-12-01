@@ -2,9 +2,9 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = 'supriya2813/my-static-site:latest'
+        DOCKER_IMAGE = 'supriya2813/my-static-website:latest'
         CONTAINER_NAME = 'main-container'
-        PORT = 8082
+        PORT = 8083
     }
 
     stages {
