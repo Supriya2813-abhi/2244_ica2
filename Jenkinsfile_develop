@@ -1,54 +1,45 @@
 pipeline {
     agent any
-    environment {
-        DOCKER_IMAGE = "supriya2813/my-static-site" 
-        PORT = "8081"
-        CONTAINER_NAME = "develop-container"
-    }
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-        stage('Build Docker Image') {
+        stage('Build Image') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE}:latest ."
+                sh 'docker build -t my-static-site .'
             }
         }
-        stage('Run Docker Container') {
+        stage('Run Container') {
             steps {
-                script {
-                    sh "docker stop ${CONTAINER_NAME} || true"
-                    sh "docker rm ${CONTAINER_NAME} || true"
-                    sh "docker run -d --name ${CONTAINER_NAME} -p ${PORT}:80 ${DOCKER_IMAGE}:latest"
-                }
+                sh 'docker run -d -p 8082:80 --name develop-container my-static-site'
             }
         }
-        stage('Test Website Accessibility') {
+        stage('Test') {
             steps {
-                sh "curl -I http://localhost:${PORT}"
+                sh 'curl -I localhost:8082'
             }
         }
         stage('Tag and Push Image') {
             steps {
                 script {
-                    sh "docker tag ${DOCKER_IMAGE}:latest ${DOCKER_IMAGE}:develop-${env.BUILD_ID}"
-                    sh "docker push ${DOCKER_IMAGE}:latest"
-                    sh "docker push ${DOCKER_IMAGE}:develop-${env.BUILD_ID}"
+                    // Use credentials to log in to Docker Hub
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        // Log in to Docker Hub
+                        sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
+
+                        // Tag the image with the correct namespace and repo name
+                        def buildId = env.BUILD_ID ?: "local"
+                        sh 'docker tag my-static-website docker.io/supriya2813/my-static-site:latest'
+                        sh "docker tag my-static-website docker.io/supriya2813/my-static-site:develop-6-${buildId}"
+
+                        // Push the image to Docker Hub (repository will be auto-created)
+                        sh 'docker push docker.io/supriya2813/my-static-site:latest'
+                        sh "docker push docker.io/supriya2813/my-static-site:develop-6-${buildId}"
+                    }
                 }
             }
-        }
-    }
-    post {
-        always {
-            echo "Pipeline completed."
-        }
-        success {
-            echo "Pipeline succeeded!"
-        }
-        failure {
-            echo "Pipeline failed. Check logs for details."
         }
     }
 }
