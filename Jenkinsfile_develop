@@ -1,53 +1,77 @@
 pipeline {
     agent any
+
     stages {
         stage('Checkout') {
             steps {
+                echo 'Checking out source code...'
                 checkout scm
             }
         }
+
         stage('Build Image') {
             steps {
+                echo 'Building Docker image...'
                 sh 'docker build -t my-static-site .'
             }
         }
+
         stage('Run Container') {
             steps {
                 script {
-                    // Stop and remove the container if it already exists
-                    sh 'docker stop develop-container || true'
-                    sh 'docker rm develop-container || true'
-                    
-                    // Run the container on port 8082
+                    echo 'Stopping and removing any existing container...'
+                    sh 'docker rm -f develop-container || true'
+
+                    echo 'Running the new container...'
                     sh 'docker run -d -p 8082:80 --name develop-container my-static-site'
                 }
             }
         }
+
         stage('Test') {
             steps {
-                // Test if the website is accessible
-                sh 'curl -I localhost:8082'
+                echo 'Testing the running container...'
+                // Check if the web server is up and accessible
+                sh 'curl -I localhost:8082 || exit 1'
             }
         }
+
         stage('Tag and Push Image') {
             steps {
                 script {
-                    // Use credentials to log in to Docker Hub
+                    echo 'Tagging and pushing the Docker image...'
+                    
+                    // Login to Docker Hub
                     withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        // Log in to Docker Hub
                         sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
 
-                        // Tag the image with the correct namespace and repo name
-                        def buildId = env.BUILD_ID ?: "local"
+                        // Create dynamic tags
+                        def buildId = env.BUILD_NUMBER ?: "local"
                         sh 'docker tag my-static-site docker.io/supriya2813/my-static-site:latest'
                         sh "docker tag my-static-site docker.io/supriya2813/my-static-site:develop-6-${buildId}"
 
-                        // Push the image to Docker Hub
+                        // Push tags to Docker Hub
                         sh 'docker push docker.io/supriya2813/my-static-site:latest'
                         sh "docker push docker.io/supriya2813/my-static-site:develop-6-${buildId}"
                     }
                 }
             }
+        }
+
+        stage('Cleanup') {
+            steps {
+                echo 'Cleaning up unused Docker resources...'
+                sh 'docker image prune -f || true'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed. Check the logs for more details.'
         }
     }
 }
